@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import sys
 import tomllib
@@ -13,12 +14,16 @@ from titanforge.locations.builder import build_location_pack, format_location_bu
 from titanforge.masks.analyzer import analyze_png_mask, format_mask_analysis
 from titanforge.masks.cleanup import format_mask_cleanup_result, render_mask_cleanup_preview
 from titanforge.masks.png import PngError
-from titanforge.masks.demo import format_demo_mask_result, generate_demo_mask
+from titanforge.masks.demo import DEMO_MASK_MIN_SIZE, format_demo_mask_result, generate_demo_mask
 from titanforge.operations.night_run import format_night_run_result, run_night_run
 from titanforge.preview.mask_preview import format_mask_preview_result, render_mask_preview
 from titanforge.terrain.heightmap_preview import format_heightmap_preview_result, render_heightmap_preview
 from titanforge.validation.layout_report import format_layout_validation_report, validate_layout_file, write_layout_validation_report
 from titanforge.versions.targets import ACTIVE_TARGETS, PARKING_LOT_TARGETS, PRIMARY_TARGET
+
+
+class CliUsageError(Exception):
+    """A bad command-line value; reported as a one-line error with exit code 2."""
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -146,7 +151,15 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         return _dispatch(args, parser)
-    except (PngError, FileNotFoundError, NotADirectoryError, tomllib.TOMLDecodeError) as exc:
+    except (
+        CliUsageError,
+        PngError,
+        FileNotFoundError,
+        NotADirectoryError,
+        IsADirectoryError,
+        json.JSONDecodeError,
+        tomllib.TOMLDecodeError,
+    ) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
@@ -172,6 +185,7 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         return 0
 
     if args.command == "demo-mask":
+        _require_demo_size(args.width, args.height)
         result = generate_demo_mask(args.output, width=args.width, height=args.height)
         print(format_demo_mask_result(result))
         return 0
@@ -208,6 +222,8 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         return 1 if result.has_errors else 0
 
     if args.command == "build-location":
+        if args.input is None:
+            _require_demo_size(args.width, args.height)
         result = build_location_pack(
             args.output_dir,
             input_mask=args.input,
@@ -220,6 +236,13 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         return 1 if result.errors else 0
 
     if args.command == "night-run":
+        _require(args.count >= 1, f"--count must be at least 1, got {args.count}")
+        _require_demo_size(args.width, args.height)
+        _require(args.size_step >= 0, f"--size-step must be zero or positive, got {args.size_step}")
+        _require(
+            args.max_minutes is None or args.max_minutes > 0,
+            f"--max-minutes must be positive, got {args.max_minutes}",
+        )
         result = run_night_run(
             args.output_dir,
             count=args.count,
@@ -235,6 +258,18 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
 
     parser.print_help()
     return 0
+
+
+def _require(condition: bool, message: str) -> None:
+    if not condition:
+        raise CliUsageError(message)
+
+
+def _require_demo_size(width: int, height: int) -> None:
+    _require(
+        width >= DEMO_MASK_MIN_SIZE and height >= DEMO_MASK_MIN_SIZE,
+        f"--width and --height must be at least {DEMO_MASK_MIN_SIZE}, got {width} x {height}",
+    )
 
 
 def print_info() -> None:

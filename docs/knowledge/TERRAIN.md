@@ -6,6 +6,8 @@ TitanForge terrain starts as cheap preview artifacts before full Minecraft expor
 
 The first terrain pass reads a `mask-layout` JSON artifact, resolves the source PNG mask, and writes a grayscale heightmap preview.
 
+The layout stores the mask path relative to the layout file. It is resolved as: absolute path as-is; otherwise relative to the layout's folder; otherwise (older layouts) relative to the current working directory. `--mask` overrides all of this.
+
 ```powershell
 $env:PYTHONPATH = "src"
 python -m titanforge mask-layout path\to\mask.png out\layout.json

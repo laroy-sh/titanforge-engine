@@ -33,6 +33,8 @@ python -m titanforge build-location out\my-location --input path\to\mask.png
 
 The input mask is copied into the pack as `mask.png`.
 
+`layout.json` refers to the mask relative to its own folder (`"path": "mask.png"`), so a pack keeps working after it is moved or opened from another working directory.
+
 ## Cleanup As Terrain Input
 
 By default, `heightmap-preview.png` is rendered from the original `mask.png`.

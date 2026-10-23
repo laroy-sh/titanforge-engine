@@ -68,6 +68,19 @@
         "README and AGENTS explain how a fresh Codex chat should continue",
         "tests cover the night-run command"
       ]
+    },
+    {
+      "id": "TF-007",
+      "status": "done",
+      "priority": "P0",
+      "title": "Make location packs portable and replace tracebacks with clean errors",
+      "acceptance": [
+        "layout.json stores the mask path relative to the layout file (mask.png inside a pack)",
+        "older layouts with working-directory-relative paths still resolve",
+        "validate-layout reports malformed JSON and wrong shapes as errors instead of crashing",
+        "bad numeric CLI arguments exit with code 2 and a one-line error",
+        "tests cover the regressions"
+      ]
     }
   ]
 }

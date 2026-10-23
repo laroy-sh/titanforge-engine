@@ -86,3 +86,11 @@ It does not modify the source mask or feed cleaned pixels into terrain yet. This
 `heightmap-preview` can now render from an explicit mask override, and `build-location --use-cleanup-for-heightmap` uses `mask-cleanup-preview.png` as the heightmap source.
 
 The original mask remains the source of `layout.json` and `report.txt`. This keeps input problems visible while allowing cleaner terrain previews.
+
+## 2026-10-23: Portable Layouts And Clean CLI Errors
+
+`layout.json` now records `source.path` relative to the folder that holds the layout, with forward slashes. Inside a location pack this is simply `mask.png`, so a pack can be moved, copied to another PC, or read from any working directory.
+
+Older layouts that stored a working-directory-relative path still resolve: the heightmap preview tries the layout folder first and falls back to the working directory.
+
+`validate-layout` reports malformed JSON and wrong value types as `ERROR` issues instead of crashing. Bad numeric CLI arguments (demo sizes below 32, `--count 0`, negative `--size-step`, non-positive `--max-minutes`) exit with code 2 and a one-line `error:` message.

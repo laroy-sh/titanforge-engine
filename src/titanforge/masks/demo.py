@@ -7,6 +7,8 @@ from pathlib import Path
 from titanforge.masks.palette import DEFAULT_ZONE_PALETTE, MaskColor
 from titanforge.masks.png import write_rgba_png
 
+DEMO_MASK_MIN_SIZE = 32
+
 
 @dataclass(frozen=True)
 class DemoMaskResult:
@@ -16,8 +18,8 @@ class DemoMaskResult:
 
 
 def generate_demo_mask(output_path: Path, width: int = 128, height: int = 128) -> DemoMaskResult:
-    if width < 32 or height < 32:
-        raise ValueError("Demo mask size must be at least 32 x 32.")
+    if width < DEMO_MASK_MIN_SIZE or height < DEMO_MASK_MIN_SIZE:
+        raise ValueError(f"Demo mask size must be at least {DEMO_MASK_MIN_SIZE} x {DEMO_MASK_MIN_SIZE}.")
 
     colors = {zone.zone_id: zone.color.rgba for zone in DEFAULT_ZONE_PALETTE}
     pixels: list[tuple[tuple[int, int, int, int], ...]] = []

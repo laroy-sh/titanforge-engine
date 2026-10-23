@@ -40,25 +40,32 @@ class LayoutValidationResult:
 
 
 def validate_layout_file(layout_path: Path) -> LayoutValidationResult:
-    layout = json.loads(layout_path.read_text(encoding="utf-8"))
+    try:
+        layout = json.loads(layout_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        issue = LayoutIssue("error", "layout.parse", f"Layout file is not valid JSON: {exc}")
+        return _empty_result(layout_path, (issue,))
     return validate_layout(layout_path, layout)
 
 
-def validate_layout(layout_path: Path, layout: dict[str, Any]) -> LayoutValidationResult:
-    world = layout.get("world", {})
-    coverage = layout.get("coverage", {})
-    zones_data = layout.get("zones", [])
-
-    schema = str(layout.get("schema", ""))
-    version = int(layout.get("version", 0))
-    width = int(world.get("width", 0))
-    length = int(world.get("length", 0))
-    total_pixels = int(coverage.get("totalPixels", 0))
-    known_pixels = int(coverage.get("knownPixels", 0))
-    unknown_pixels = int(coverage.get("unknownPixels", 0))
-    zones = tuple(str(zone.get("id", "")) for zone in zones_data if zone.get("id"))
+def validate_layout(layout_path: Path, layout: Any) -> LayoutValidationResult:
+    if not isinstance(layout, dict):
+        issue = LayoutIssue("error", "layout.shape", "Layout must be a JSON object.")
+        return _empty_result(layout_path, (issue,))
 
     issues: list[LayoutIssue] = []
+    world = _section(layout, "world", issues)
+    coverage = _section(layout, "coverage", issues)
+    zones_data = _zone_entries(layout, issues)
+
+    schema = str(layout.get("schema", ""))
+    version = _int_field(layout, "version", "layout.version", issues)
+    width = _int_field(world, "width", "world.width", issues)
+    length = _int_field(world, "length", "world.length", issues)
+    total_pixels = _int_field(coverage, "totalPixels", "coverage.totalPixels", issues)
+    known_pixels = _int_field(coverage, "knownPixels", "coverage.knownPixels", issues)
+    unknown_pixels = _int_field(coverage, "unknownPixels", "coverage.unknownPixels", issues)
+    zones = tuple(str(zone.get("id", "")) for zone in zones_data if zone.get("id"))
 
     if schema != "titanforge.mask-layout":
         issues.append(LayoutIssue("error", "layout.schema", "Unsupported or missing layout schema."))
@@ -78,9 +85,9 @@ def validate_layout(layout_path: Path, layout: dict[str, Any]) -> LayoutValidati
         issues.append(LayoutIssue("warning", "zones.no-water", "Layout has no water zone."))
     if "land" not in zones:
         issues.append(LayoutIssue("warning", "zones.no-land", "Layout has no land zone."))
-    if _coverage_percent(layout, "water") > 95.0:
+    if _coverage_percent(zones_data, "water", issues) > 95.0:
         issues.append(LayoutIssue("warning", "zones.too-much-water", "Water covers more than 95% of the mask."))
-    if _coverage_percent(layout, "land") > 95.0:
+    if _coverage_percent(zones_data, "land", issues) > 95.0:
         issues.append(LayoutIssue("warning", "zones.too-much-land", "Land covers more than 95% of the mask."))
 
     return LayoutValidationResult(
@@ -127,8 +134,60 @@ def format_layout_validation_report(result: LayoutValidationResult) -> str:
     return "\n".join(lines)
 
 
-def _coverage_percent(layout: dict[str, Any], zone_id: str) -> float:
-    for zone in layout.get("zones", []):
+def _empty_result(layout_path: Path, issues: tuple[LayoutIssue, ...]) -> LayoutValidationResult:
+    return LayoutValidationResult(
+        layout_path=layout_path,
+        schema="",
+        version=0,
+        width=0,
+        length=0,
+        zones=(),
+        total_pixels=0,
+        known_pixels=0,
+        unknown_pixels=0,
+        issues=issues,
+    )
+
+
+def _section(layout: dict[str, Any], key: str, issues: list[LayoutIssue]) -> dict[str, Any]:
+    value = layout.get(key, {})
+    if isinstance(value, dict):
+        return value
+    issues.append(LayoutIssue("error", f"{key}.shape", f"'{key}' must be a JSON object."))
+    return {}
+
+
+def _zone_entries(layout: dict[str, Any], issues: list[LayoutIssue]) -> tuple[dict[str, Any], ...]:
+    value = layout.get("zones", [])
+    if not isinstance(value, list):
+        issues.append(LayoutIssue("error", "zones.shape", "'zones' must be a JSON list."))
+        return ()
+    entries = tuple(zone for zone in value if isinstance(zone, dict))
+    if len(entries) != len(value):
+        issues.append(LayoutIssue("error", "zones.shape", "Every entry in 'zones' must be a JSON object."))
+    return entries
+
+
+def _int_field(section: dict[str, Any], key: str, code: str, issues: list[LayoutIssue]) -> int:
+    value = section.get(key, 0)
+    try:
+        if isinstance(value, bool):
+            raise TypeError("booleans are not numbers")
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        issues.append(LayoutIssue("error", f"{code}.type", f"'{code}' must be a whole number, got {value!r}."))
+        return 0
+
+
+def _coverage_percent(zones_data: tuple[dict[str, Any], ...], zone_id: str, issues: list[LayoutIssue]) -> float:
+    for zone in zones_data:
         if zone.get("id") == zone_id:
-            return float(zone.get("percent", 0.0))
+            value = zone.get("percent", 0.0)
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                issues.append(
+                    LayoutIssue("error", "zones.percent.type", f"Zone '{zone_id}' percent must be a number, got {value!r}.")
+                )
+                return 0.0
     return 0.0

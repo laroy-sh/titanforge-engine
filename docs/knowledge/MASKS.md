@@ -50,7 +50,7 @@ The cleaned PNG can be used as a heightmap input with `heightmap-preview --mask`
 
 `mask-layout` writes a neutral JSON artifact:
 
-- source mask path
+- source mask path (relative to the layout file, forward slashes)
 - world width and length
 - known and unknown pixel counts
 - zone IDs, labels, colors, pixel counts, and percentages

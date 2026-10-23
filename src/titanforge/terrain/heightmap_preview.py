@@ -103,7 +103,14 @@ def _load_layout(layout_path: Path) -> dict[str, Any]:
 
 
 def _resolve_mask_path(layout_path: Path, layout: dict[str, Any]) -> Path:
-    source_path = Path(str(layout.get("source", {}).get("path", "")))
+    source = layout.get("source") if isinstance(layout, dict) else None
+    raw_path = source.get("path") if isinstance(source, dict) else None
+    if not isinstance(raw_path, str) or not raw_path:
+        raise FileNotFoundError(f"Layout {layout_path} does not name a source mask (source.path); use --mask to provide one.")
+
+    # New layouts store the mask path relative to the layout folder. Older layouts
+    # stored it relative to the working directory, so that is kept as a fallback.
+    source_path = Path(raw_path)
     if source_path.is_absolute():
         return source_path
 
